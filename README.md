@@ -1,6 +1,6 @@
 # Школа Клякси
 
-Піксельний тренажер математики шкоди та статусів Warframe. Обираєш мод або статус, бачиш цифру й покроковий розрахунок, а Клякса пояснює, чому вийшло саме так. Усередині похід із кімнат-головоломок (шкода, статуси, оборона, здібності), арена слабкостей фракцій, пісочниця з модами і шпаргалка.
+Піксельний тренажер математики шкоди та статусів Warframe. Обираєш мод або статус, бачиш цифру й покроковий розрахунок, а Клякса пояснює, чому вийшло саме так. Усередині похід із кімнат-головоломок (шкода, статуси, оборона, здібності), арена на слабкості фракцій і комбінації стихій, пісочниця з модами і шпаргалка.
 
 **Грати:** [українською](https://zavarovek.github.io/klyaksa/) · [in English](https://zavarovek.github.io/klyaksa/en.html)
 
@@ -10,7 +10,7 @@
 
 ---
 
-**Blot's School** is a pixel trainer for Warframe damage math and status logic: puzzle rooms with a step-by-step breakdown (damage, statuses, defense, abilities), a faction weakness arena, a mod sandbox and a cheat sheet. Rules since Update 36, numbers checked against the wiki. Found a mismatch with the game? Open an issue.
+**Blot's School** is a pixel trainer for Warframe damage math and status logic: puzzle rooms with a step-by-step breakdown (damage, statuses, defense, abilities), an arena for faction weaknesses and element combos, a mod sandbox and a cheat sheet. Rules since Update 36, numbers checked against the wiki. Found a mismatch with the game? Open an issue.
 
 ---
 

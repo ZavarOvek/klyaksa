@@ -19,11 +19,11 @@ icon = "data:image/svg+xml," + urllib.parse.quote(f'<svg xmlns="http://www.w3.or
 
 SITE = {
     "uk": dict(file="index.html", title="Школа Клякси", tag="Тренажер шкоди та статусів Warframe за правилами після Jade Shadows",
-               desc="Піксельний тренажер математики шкоди та статусів Warframe: похід із кімнат-головоломок, арена слабкостей фракцій, пісочниця з модами і шпаргалка.",
+               desc="Піксельний тренажер математики шкоди та статусів Warframe: похід із кімнат-головоломок, арена на слабкості фракцій і комбінації стихій, пісочниця з модами і шпаргалка.",
                modes="Режими", tabs=("Похід", "Арена", "Пісочниця", "Шпаргалка"),
                foot='Цифри звірено з <a href="https://wiki.warframe.com/w/Damage">wiki.warframe.com</a> 9 жовтня 2026 року. Гра додатково округлює шкоду (квантування), тут цього немає. Назви модів і типів шкоди лишено англійською, як у більшості білдів. <a href="en.html">English version</a>'),
     "en": dict(file="en.html", title="Blot's School", tag="A trainer for Warframe damage math and status logic, on the rules since Jade Shadows",
-               desc="A pixel trainer for Warframe damage math and status logic: a run of puzzle rooms, a faction weakness arena, a mod sandbox and a cheat sheet.",
+               desc="A pixel trainer for Warframe damage math and status logic: a run of puzzle rooms, an arena for faction weaknesses and element combos, a mod sandbox and a cheat sheet.",
                modes="Modes", tabs=("Run", "Arena", "Sandbox", "Cheat sheet"),
                foot='Numbers checked against <a href="https://wiki.warframe.com/w/Damage">wiki.warframe.com</a> on 9 October 2026. The game also rounds damage (quantization), and this trainer does not. <a href="index.html">Українська версія</a>'),
 }
@@ -40,7 +40,7 @@ for lang, s in SITE.items():
 <link rel="icon" href="{icon}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Pixelify+Sans:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Handjet:wght@500;700&family=JetBrains+Mono:wght@400;700&family=Press+Start+2P&display=swap">
 <style>
 html {{ -webkit-text-size-adjust: 100%; }}
 body {{ margin: 0; }}

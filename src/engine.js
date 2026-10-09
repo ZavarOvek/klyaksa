@@ -121,6 +121,42 @@ function dotTick(b, tg, t) {
   if (t === 'Blast') return 0.3 * b.modBase * f * def;
   return null;
 }
+/* Час. Між пострілами 1 / скорострільність, після магазину ще перезарядка (цикл = магазин / скорострільність + перезарядка). */
+function shotTimes(fr, mag, reload, T) {
+  const out = [], cycle = mag / fr + reload;
+  for (let c = 0; c < 1e5; c++) {
+    for (let i = 0; i < mag; i++) {
+      const t = c * cycle + i / fr;
+      if (t >= T - 1e-9) return out;
+      out.push(t);
+    }
+  }
+  return out;
+}
+/* Коли тікає прок, рахуючи від влучання (за вікі). Gas узято як Toxin, затримка Blast 1.5 с. */
+const TICK_AT = { Slash: [1, 2, 3, 4, 5, 6], Heat: [1, 2, 3, 4, 5, 6], Toxin: [1, 2, 3, 4, 5, 6], Gas: [1, 2, 3, 4, 5, 6], Electricity: [0, 1, 2, 3, 4, 5], Blast: [1.5] };
+/* Шкода за вікно T секунд у середньому: проки рахуються дробами, тік множиться на середній крит.
+   Heat: новий прок оновлює тривалість усіх стаків. low = без оновлення (6 тіків на стак), upper = стаки не згасають
+   до кінця вікна, dmg = оцінка: стак живе в середньому (e^(6λ) − 1) / λ секунд при λ проків за секунду (потік Пуассона). */
+function windowDamage(b, tg, rate, T) {
+  const h = hit(b, tg), shot = h.health * b.ms, times = shotTimes(rate.fr, rate.mag, rate.reload, T), N = times.length;
+  const dots = [];
+  for (const l of h.lines) {
+    const tick = dotTick(b, tg, l.t);
+    if (tick === null) continue;
+    const per = b.ms * b.sc * (l.v / b.total), at = TICK_AT[l.t];
+    const heat = l.t === 'Heat', lam = per * N / T, life = lam > 0 ? Math.expm1(6 * lam) / lam : 6;
+    let ticks = 0, up = 0, est = 0;
+    for (const s of times) {
+      for (const o of at) if (s + o <= T + 1e-9) ticks++;
+      if (heat) { const left = Math.max(0, Math.floor(T - s + 1e-9)); up += left; est += Math.min(left, life); }
+    }
+    const one = tick * b.crit, used = heat ? est : ticks;
+    dots.push({ t: l.t, procs: per * N, avg: N ? used / N : 0, tick: one, dmg: per * used * one, low: per * ticks * one, upper: heat ? per * up * one : null });
+  }
+  const direct = N * shot, dot = dots.reduce((a, x) => a + x.dmg, 0);
+  return { shot, N, cycle: rate.mag / rate.fr + rate.reload, direct, dots, dot, total: direct + dot, dps: (direct + dot) / T };
+}
 /* Скільки пострілів до смерті цілі зі щитом. Toxin іде одразу в здоров'я. */
 function shotsToKill(b, tg, carry = true) {
   const h = hit(b, tg);

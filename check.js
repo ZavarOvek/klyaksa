@@ -23,6 +23,14 @@ for (const lang of ['uk', 'en']) {
     console.log('wiki bleed with Elementalist 297.8202 ->', bleedTick(sl, { faction: 'grineer' }));
     const tx = build({ base: 100, ips: { Puncture: 1 } }, [M.serration, M.clip, M.elementalist, M.baneInf]);
     console.log('wiki Toxin tick 808.3692 ->', dotTick(tx, { faction: 'none' }, 'Toxin'));
+    console.log('shots 10/s, mag 10, reload 1 s, 5 s: 30 ->', shotTimes(10, 10, 1, 5).length, '| 8/s, mag 60, reload 2 s, 10 s: 64 ->', shotTimes(8, 60, 2, 10).length);
+    const wd = windowDamage(build({ base: 100, ips: { Slash: 1 }, sc: 1 }, []), { faction: 'none' }, { fr: 1, mag: 100, reload: 0 }, 3);
+    console.log('window: 3 shots × 100 + 6 bleed ticks × 35 = 510 ->', wd.total, '| dps 170 ->', wd.dps);
+    const wh = windowDamage(build({ base: 100, ips: { Puncture: 1 }, sc: 1 }, [M.hellfire]), { faction: 'none' }, { fr: 1, mag: 100, reload: 0 }, 8).dots.find(x => x.t === 'Heat');
+    console.log('heat 8 s: share 0.9/1.9, ticks 6+6+6+5+4+3+2+1 = 33, tick 95; lower', 0.9 / 1.9 * 33 * 95, '->', wh.low, '| estimate', wh.dmg, '| no-expiry ticks 8+7+...+1 = 36:', 0.9 / 1.9 * 36 * 95, '->', wh.upper);
+    const rare = windowDamage(build({ base: 100, ips: { Puncture: 1 }, sc: 0.01 }, [M.hellfire]), { faction: 'none' }, { fr: 1, mag: 100, reload: 0 }, 30).dots[0];
+    const often = windowDamage(build({ base: 100, ips: { Puncture: 1 }, sc: 1 }, [M.hellfire]), { faction: 'none' }, { fr: 10, mag: 100, reload: 0 }, 30).dots[0];
+    console.log('heat estimate: rare procs stay near the lower bound ->', (rare.dmg / rare.low).toFixed(3), '| frequent procs reach the upper bound ->', (often.dmg / often.upper).toFixed(3), '| always inside bounds:', rare.low <= rare.dmg && rare.dmg <= rare.upper && often.low <= often.dmg && often.dmg <= often.upper);
     const cr = ROOMS.find(r => r.id === 'crewman'); cr.options.forEach((o, i) => { const s = setup(cr, i); if (shotsToKill(s.b, s.tg, true).shots !== shotsToKill(s.b, s.tg, false).shots) console.log('!! shield carry matters'); });
   }`;
   (0, eval)(`(() => {${src}})()`);

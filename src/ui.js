@@ -5,12 +5,12 @@
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const KEY = 'klyaksa.v5';
   const TYPES = ['Impact', 'Puncture', 'Slash', 'Heat', 'Cold', 'Electricity', 'Toxin', 'Blast', 'Corrosive', 'Gas', 'Magnetic', 'Radiation', 'Viral', 'Void'];
-  let state = { view: 'run', room: 0, reached: 0, tried: {}, first: {}, last: {}, arena: { streak: 0, best: 0, q: null }, sb: { w: 0, mods: [], fac: 'grineer', armor: 300, viral: false, cor: false } };
+  let state = { view: 'run', room: 0, reached: 0, tried: {}, first: {}, last: {}, arena: { streak: 0, best: 0, q: null, mode: 'weak', c: { streak: 0, best: 0, q: null } }, sb: { w: 0, mods: [], fac: 'grineer', armor: 300, viral: false, cor: false, T: 10 } };
   try { document.documentElement.lang = T.lang; } catch (e) { /* ignore */ }
 
   function save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ room: state.room, reached: state.reached, tried: state.tried, first: state.first, last: state.last, best: state.arena.best, sb: state.sb }));
+      localStorage.setItem(KEY, JSON.stringify({ room: state.room, reached: state.reached, tried: state.tried, first: state.first, last: state.last, best: state.arena.best, cbest: state.arena.c.best, amode: state.arena.mode, sb: state.sb }));
     } catch (e) { /* без сховища теж працює */ }
   }
   function load() {
@@ -20,11 +20,11 @@
       state.room = Math.min(Math.max(0, d.room | 0), ROOMS.length);
       state.reached = Math.min(Math.max(0, d.reached | 0), ROOMS.length);
       state.tried = d.tried || {}; state.first = d.first || {}; state.last = d.last || {};
-      state.arena.best = d.best | 0;
+      state.arena.best = d.best | 0; state.arena.c.best = d.cbest | 0; state.arena.mode = d.amode === 'combo' ? 'combo' : 'weak';
       const s = d.sb;
       if (s && Array.isArray(s.mods)) state.sb = {
         w: SBW[s.w] ? s.w : 0, mods: s.mods.filter(id => SBM[id]).slice(0, SLOTS),
-        fac: s.fac === 'none' || LOOK[s.fac] ? s.fac : 'grineer', armor: ARMORS.includes(s.armor) ? s.armor : 300, viral: !!s.viral, cor: !!s.cor,
+        fac: s.fac === 'none' || LOOK[s.fac] ? s.fac : 'grineer', armor: ARMORS.includes(s.armor) ? s.armor : 300, viral: !!s.viral, cor: !!s.cor, T: WINDOWS.includes(s.T) ? s.T : 10,
       };
     } catch (e) { /* ignore */ }
   }
@@ -292,11 +292,14 @@
     const wrong = shuffle(TYPES.filter(t => !f.plus.includes(t))).slice(0, 3);
     state.arena.q = { fid, correct, opts: shuffle([correct, ...wrong]), ans: null };
   }
+  const modesHTML = () => `<div class="seg two">${U.arenaModes.map((n, i) => { const m = i ? 'combo' : 'weak'; return `<button type="button" class="btn" data-am="${m}" aria-pressed="${state.arena.mode === m}">${n}</button>`; }).join('')}</div>`;
   function renderArena() {
+    if (state.arena.mode === 'combo') return renderCombo();
     if (!state.arena.q) newQ();
     const q = state.arena.q, f = FACTIONS[q.fid], a = state.arena, done = q.ans !== null, ok = q.ans === q.correct;
     view.innerHTML = `
       <section class="run arena">
+        ${modesHTML()}
         <header class="room-head"><p class="eyebrow">${U.arenaEyebrow(a.streak, a.best)}</p><h2>${f.name}</h2></header>
         <div class="stage"><canvas id="scene" width="200" height="84" role="img" aria-label="${U.arenaAlt(f.name)}"></canvas></div>
         <h3 class="ask">${U.arenaAsk}</h3>
@@ -319,6 +322,69 @@
     if (t === q.correct) { a.streak++; a.best = Math.max(a.best, a.streak); } else a.streak = 0;
     save(); renderArena();
     if (t === q.correct) sc.hitAt = performance.now();
+    const n = $('#nextQ'); if (n) n.focus();
+  }
+
+  /* Комбінації стихій: сума пари, склад комбінації, порядок слотів. */
+  const rnd = a => a[Math.floor(Math.random() * a.length)];
+  const ELS = ['Heat', 'Cold', 'Electricity', 'Toxin'];
+  const PAIRS = ELS.flatMap((a, i) => ELS.slice(i + 1).map(b => [a, b]));
+  const comboOf = (a, b) => COMBO[[a, b].sort().join('+')];
+  const tyPlus = key => key.split('+').map(ty).join(' + ');
+  function newCQ() {
+    const prev = state.arena.c.q;
+    let q;
+    do {
+      const kind = rnd(['sum', 'sum', 'parts', 'order']);
+      if (kind === 'sum') {
+        const p = shuffle(rnd(PAIRS).slice()), correct = comboOf(...p);
+        q = { kind, ask: p, correct, combos: [correct], opts: shuffle([correct, ...shuffle(Object.values(COMBO).filter(c => c !== correct)).slice(0, 3)]) };
+      } else if (kind === 'parts') {
+        const p = rnd(PAIRS), c = comboOf(...p);
+        q = { kind, ask: [c], correct: p.join('+'), combos: [c], opts: shuffle([p, ...shuffle(PAIRS.filter(x => x !== p)).slice(0, 3)]).map(x => x.join('+')) };
+      } else {
+        const e = shuffle(ELS.slice()).slice(0, rnd([3, 4]));
+        const ways = e.length === 3 ? [[[0, 1], [2]], [[0, 2], [1]], [[1, 2], [0]]] : [[[0, 1], [2, 3]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]];
+        const res = ways.map(w => w.map(g => (g.length === 2 ? comboOf(e[g[0]], e[g[1]]) : e[g[0]])));
+        q = { kind, ask: e, correct: res[0].join('+'), combos: res[0].filter(t => !ELS.includes(t)), opts: shuffle(res.map(r => r.join('+'))) };
+      }
+      q.ans = null;
+    } while (prev && prev.kind === q.kind && prev.ask.join() === q.ask.join());
+    state.arena.c.q = q;
+  }
+  function comboWeakHTML(c) {
+    const ids = Object.keys(LOOK), names = k => ids.filter(id => FACTIONS[id][k].includes(c)).map(id => FACTIONS[id].name).join(', ') || U.none;
+    return `<p class="weak"><span class="lab">${ty(c)}</span><span>+50%: ${names('plus')}</span><span>−50%: ${names('minus')}</span></p>`;
+  }
+  function renderCombo() {
+    const a = state.arena.c;
+    if (!a.q) newCQ();
+    const q = a.q, done = q.ans !== null, ok = q.ans === q.correct;
+    const head = q.kind === 'order' ? q.ask.map((t, i) => `<span class="slotn">${i + 1}</span>${ty(t)}`).join(' ') : q.ask.map(ty).join(' + ');
+    view.innerHTML = `
+      <section class="run arena combo">
+        ${modesHTML()}
+        <header class="room-head"><p class="eyebrow">${U.comboEyebrow(a.streak, a.best)}</p><h2 class="chain">${head}</h2></header>
+        <div class="stage"><canvas id="scene" width="200" height="84" role="img" aria-label="${U.comboAlt}"></canvas></div>
+        <h3 class="ask">${U.comboAsk[q.kind]}</h3>
+        <div class="opts ${q.kind === 'sum' ? 'four' : 'wide'}">${q.opts.map(o => `<button type="button" class="btn opt${done && o === q.correct ? ' best' : ''}${done && o === q.ans && !ok ? ' wrong' : ''}" data-c="${o}" ${done ? 'disabled' : ''}>${tyPlus(o)}</button>`).join('')}</div>
+        <div class="result" ${done ? '' : 'hidden'}>
+          <div class="res-head"><p class="verdict ${ok ? 'good' : 'bad'}">${ok ? U.hit : U.miss(q.correct.split('+').join(' + '))}</p></div>
+          <div class="say"><canvas class="face" width="16" height="13" data-mood="${ok ? 'happy' : 'sad'}" aria-hidden="true"></canvas><p>${q.kind === 'order' ? U.comboOrderTip : T.ctip[q.combos[0]]}</p></div>
+          ${q.combos.map(comboWeakHTML).join('')}
+        </div>
+        <div class="nav"><button type="button" class="btn go" id="nextQ" ${done ? '' : 'hidden'}>${U.nextCombo}</button></div>
+      </section>`;
+    setScene({ scene: 'sim', sprite: 'dummy', pal: 'dummy', mood: done ? (ok ? 'happy' : 'sad') : 'idle' });
+    faces();
+  }
+  function answerC(o) {
+    const a = state.arena.c, q = a.q;
+    if (q.ans !== null) return;
+    q.ans = o;
+    if (o === q.correct) { a.streak++; a.best = Math.max(a.best, a.streak); } else a.streak = 0;
+    save(); renderCombo();
+    if (o === q.correct) sc.hitAt = performance.now();
     const n = $('#nextQ'); if (n) n.focus();
   }
 
@@ -382,15 +448,19 @@
     ms:    { pile: 'ms', k: 'ms', v: 0.9, like: 'Split Chamber' },
     sc:    { pile: 'st', k: 'sc', v: 0.9 },
     sd:    { pile: 'st', k: 'status', v: 0.9, like: 'Rifle Elementalist' },
+    fr:    { pile: 'rate', k: 'fr', v: 0.6, like: 'Speed Trigger' },
+    mag:   { pile: 'rate', k: 'mag', v: 0.3, like: 'Magazine Warp' },
+    rl:    { pile: 'rate', k: 'rl', v: 0.3, like: 'Fast Hands' },
   };
-  const SBO = Object.keys(SBM), PILES = ['base', 'elem', 'fac', 'crit', 'ms', 'st'];
+  const SBO = Object.keys(SBM), PILES = ['base', 'elem', 'fac', 'crit', 'ms', 'st', 'rate'], WINDOWS = [5, 10, 30];
   const SBW = [
-    { base: 100, ips: { Impact: 0.34, Puncture: 0.33, Slash: 0.33 }, cc: 0.2, cm: 2, sc: 0.2, ms: 1 },
-    { base: 100, ips: { Impact: 0.1, Puncture: 0.7, Slash: 0.2 }, cc: 0.35, cm: 3, sc: 0.1, ms: 1 },
-    { base: 100, ips: { Impact: 0.1, Puncture: 0.2, Slash: 0.7 }, cc: 0.1, cm: 2, sc: 0.35, ms: 1 },
+    { base: 100, ips: { Impact: 0.34, Puncture: 0.33, Slash: 0.33 }, cc: 0.2, cm: 2, sc: 0.2, ms: 1, fr: 8, mag: 60, rl: 2 },
+    { base: 100, ips: { Impact: 0.1, Puncture: 0.7, Slash: 0.2 }, cc: 0.35, cm: 3, sc: 0.1, ms: 1, fr: 2.5, mag: 20, rl: 2.5 },
+    { base: 100, ips: { Impact: 0.1, Puncture: 0.2, Slash: 0.7 }, cc: 0.1, cm: 2, sc: 0.35, ms: 1, fr: 12, mag: 100, rl: 2 },
   ];
   const ARMORS = [0, 300, 1200, 2700];
   const sbName = id => T.sb.mod[id];
+  const fN = v => (Math.abs(v) >= 1000 ? f1(Math.round(v)) : f1(v));
   const pl = p => `<span class="pl" data-p="${p}"></span>`;
 
   function sbCalc(s, mods) {
@@ -398,14 +468,16 @@
     const list = (mods || s.mods).map(id => (none && SBM[id].k === 'faction' ? { k: 'none' } : SBM[id]));
     const b = build(SBW[s.w], list);
     const tg = { faction: s.fac, armor: s.armor, st: { viral: s.viral ? 10 : 0, corrosive: s.cor ? 10 : 0 } };
-    const h = hit(b, tg);
-    return { b, tg, h, shot: h.health * b.ms };
+    const h = hit(b, tg), w = SBW[s.w], add = k => list.filter(m => m.k === k).map(m => m.v), sum = a => a.reduce((x, y) => x + y, 0);
+    const lists = { fr: add('fr'), mag: add('mag'), rl: add('rl') };
+    const rate = { fr: w.fr * (1 + sum(lists.fr)), mag: Math.round(w.mag * (1 + sum(lists.mag))), reload: w.rl / (1 + sum(lists.rl)) };
+    return { b, tg, h, shot: h.health * b.ms, rate, lists, T: s.T, win: windowDamage(b, tg, rate, s.T) };
   }
   function sbRemarks(s, c) {
     const S = T.sb.say, b = c.b, f = FACTIONS[s.fac], none = s.fac === 'none', out = [];
     if (!s.mods.length) return [{ t: S.empty, mood: 'idle' }];
     const has = k => s.mods.some(id => SBM[id].k === k);
-    const direct = id => !['sc', 'status'].includes(SBM[id].k) && !(none && SBM[id].k === 'faction');
+    const direct = id => !(none && SBM[id].k === 'faction');
     if (none && has('faction')) out.push({ t: S.noFaction, mood: 'sad' });
     const res = c.h.lines.filter(l => l.tm < 1 && l.v / b.total >= 0.15).sort((x, y) => y.v - x.v)[0];
     if (res) out.push({ t: S.resist(res.t, f.name, pct(res.v / b.total)), mood: 'sad' });
@@ -413,7 +485,7 @@
     let weak = null;
     s.mods.forEach((id, i) => {
       if (!direct(id)) return;
-      const without = sbCalc(s, s.mods.filter((_, k) => k !== i)).shot, gain = c.shot / without;
+      const without = sbCalc(s, s.mods.filter((_, k) => k !== i)).win.total, gain = c.win.total / without;
       if (!weak || gain < weak.gain) weak = { i, id, gain, without };
     });
     if (weak && weak.gain < 0.995) out.push({ t: S.hurts(sbName(weak.id), x2(weak.gain)), mood: 'sad' });
@@ -421,13 +493,13 @@
       let best = null;
       for (const id of SBO) {
         if (id === weak.id || !direct(id)) continue;
-        const shot = sbCalc(s, s.mods.map((x, k) => (k === weak.i ? id : x))).shot;
+        const shot = sbCalc(s, s.mods.map((x, k) => (k === weak.i ? id : x))).win.total;
         if (!best || shot > best.shot) best = { id, shot };
       }
-      if (best && best.shot / c.shot >= 1.1) {
+      if (best && best.shot / c.win.total >= 1.1) {
         const p = SBM[weak.id].pile, n = s.mods.filter(id => SBM[id].pile === p).length;
         const a = [sbName(weak.id), x2(weak.gain), sbName(best.id), x2(best.shot / weak.without)];
-        const stacked = n > 1 && p !== 'crit' && !(p === 'elem' && c.h.lines.some(l => l.tm < 1));
+        const stacked = n > 1 && ['base', 'elem', 'fac', 'ms'].includes(p) && !(p === 'elem' && c.h.lines.some(l => l.tm < 1));
         out.push({ t: stacked ? S.swapPile(...a, T.sb.piles[p], n) : S.swap(...a), mood: 'idle' });
       }
     }
@@ -438,7 +510,9 @@
     const can = f.plus.filter(t => t !== 'Void');
     if (!none && can.length && !c.h.lines.some(l => l.tm > 1)) out.push({ t: S.unused(f.name, can.join(', ')), mood: 'idle' });
     if (c.h.dr >= 0.5 && !s.cor) out.push({ t: S.armor(pct(c.h.dr)), mood: 'idle' });
-    if (!out.length) return [weak ? { t: s.mods.length < SLOTS ? S.goodMore : S.good, mood: 'happy' } : { t: S.statusOnly, mood: 'idle' }];
+    if (c.win.total && c.win.dot / c.win.total >= 0.5) out.push({ t: S.dotShare(pct(c.win.dot / c.win.total), c.T), mood: 'idle' });
+    if (c.rate.reload / c.win.cycle >= 0.35) out.push({ t: S.reload(pct(c.rate.reload / c.win.cycle)), mood: 'idle' });
+    if (!out.length) return [{ t: weak && s.mods.length < SLOTS ? S.goodMore : S.good, mood: 'happy' }];
     return out.slice(0, 2);
   }
   function sbPiles(s, c) {
@@ -463,6 +537,21 @@
       ${rows.map(([p, lab, f, m]) => `<tr class="${Math.abs(m - 1) < 1e-9 ? 'off' : ''}"><td>${p ? pl(p) : ''}<b>${lab}</b><span class="f">${f}</span></td><td>×${x2(m)}</td></tr>`).join('')}
       <tr class="total"><td>${T.sb.shot}</td><td>${f1(c.shot)}</td></tr></tbody></table></div>`;
   }
+  function sbTime(c) {
+    const R = T.sb.time, w = SBW[state.sb.w], r = c.rate, win = c.win;
+    const fm = (base, op, a) => (a.length ? `${base} ${op} (${['1'].concat(a.map(x2)).join(' + ')})` : R.noMods);
+    const row = (lab, f, v, cls, p) => `<tr class="${cls || ''}"><td>${p || ''}<b>${lab}</b>${f ? `<span class="f">${f}</span>` : ''}</td><td>${v}</td></tr>`;
+    const off = a => (a.length ? '' : 'off');
+    return `<div class="tbl"><table class="how piles time"><tbody>
+      ${row(R.fr, fm(x2(w.fr), '×', c.lists.fr), R.perSec(x2(r.fr)), off(c.lists.fr), pl('rate'))}
+      ${row(R.mag, fm(w.mag, '×', c.lists.mag), r.mag, off(c.lists.mag), pl('rate'))}
+      ${row(R.reload, fm(x2(w.rl), '÷', c.lists.rl), R.sec(x2(r.reload)), off(c.lists.rl), pl('rate'))}
+      ${row(R.shots(c.T), R.cycle(r.mag, x2(r.fr), x2(r.reload), x2(win.cycle)), win.N)}
+      ${row(R.direct, `${win.N} × ${f1(win.shot)}`, fN(win.direct))}
+      ${win.dots.map(x => row(`${ty(x.t)} ${x.t === 'Blast' ? R.pops : R.ticks}`, R.dotF(f1(x.procs), x2(x.avg), f1(x.tick)) + (x.upper !== null && x.upper > x.low * 1.005 ? ` ${R.heatRange(fN(x.low), fN(x.upper))}` : ''), fN(x.dmg))).join('')}
+      <tr class="sum"><td>${R.total(c.T)}</td><td>${fN(win.total)}</td></tr>
+      <tr class="total"><td>${R.dps}</td><td>${fN(win.dps)}</td></tr></tbody></table></div>`;
+  }
   function sbParts(c) {
     const S = T.sb, b = c.b;
     return `<ul class="parts">${c.h.lines.map(l => {
@@ -475,7 +564,7 @@
   function paintSandbox(animated) {
     const S = T.sb, s = state.sb, c = sbCalc(s);
     const bare = sbCalc(s, []).shot, rem = sbRemarks(s, c), full = s.mods.length >= SLOTS;
-    $('#sb-sum').innerHTML = `<div><p class="lab">${S.shot}</p><p class="big">${f1(c.shot)}</p></div><div class="sum-r"><p class="mult">${S.vsBare(x2(c.shot / bare))}</p><button type="button" class="link" id="sb-why">${rem[0].mood === 'happy' ? S.whyGood : S.why(rem.length)}</button></div>`;
+    $('#sb-sum').innerHTML = `<div><p class="lab">${S.shot}</p><p class="big">${f1(c.shot)}</p></div><div class="sum-r"><p class="mult">${S.vsBare(x2(c.shot / bare))}</p><p class="dps">${S.dps(fN(c.win.dps), c.T)}</p><button type="button" class="link" id="sb-why">${rem[0].mood === 'happy' ? S.whyGood : S.why(rem.length)}</button></div>`;
     $('#sb-count').textContent = S.hSlots(s.mods.length, SLOTS);
     $('#sb-slots').innerHTML = Array.from({ length: SLOTS }, (_, i) => {
       const id = s.mods[i];
@@ -484,12 +573,15 @@
     }).join('');
     document.querySelectorAll('[data-sb-add]').forEach(b => { b.disabled = full; });
     document.querySelectorAll('[data-sb-w]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.sbW === s.w));
+    document.querySelectorAll('[data-sb-t]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.sbT === s.T));
     $('#sb-wdesc').textContent = S.weapons[s.w][1];
     $('#sb-out').innerHTML = `
       ${rem.map(r => `<div class="say"><canvas class="face" width="16" height="13" data-mood="${r.mood}" aria-hidden="true"></canvas><p>${r.t}</p></div>`).join('')}
       <h4 class="lab">${S.hPiles}</h4>${sbPiles(s, c)}
       <h4 class="lab">${S.hParts}</h4>${sbParts(c)}
-      <p class="narr small">${S.partsNote}</p>`;
+      <p class="narr small">${S.partsNote}</p>
+      <h4 class="lab">${S.hTime(c.T)}</h4>${sbTime(c)}
+      <p class="narr small">${S.timeNote}</p>`;
     const look = LOOK[s.fac] || ['dummy', 'dummy', 'sim'];
     setScene({ sprite: look[0], pal: look[1], scene: look[2], mood: rem[0].mood });
     faces();
@@ -520,6 +612,9 @@
             <label class="chk"><input type="checkbox" id="sb-viral"${s.viral ? ' checked' : ''}>${S.viral}</label>
             <label class="chk"><input type="checkbox" id="sb-cor"${s.cor ? ' checked' : ''}>${S.corrosive}</label>
           </div>
+        </fieldset>
+        <fieldset><legend class="lab">${S.hWindow}</legend>
+          <div class="seg">${WINDOWS.map(n => `<button type="button" class="btn" data-sb-t="${n}">${S.time.sec(n)}</button>`).join('')}</div>
         </fieldset>
         <div class="sb-head"><h3 class="lab" id="sb-count"></h3><button type="button" class="btn small" id="sb-clear">${S.clear}</button></div>
         <ol class="slots" id="sb-slots"></ol>
@@ -555,7 +650,9 @@
     else if (b.id === 'next') goRoom(state.room + 1);
     else if (b.id === 'again') { state.tried = {}; state.first = {}; state.last = {}; state.reached = 0; goRoom(0); }
     else if (b.id === 'toArena') { state.view = 'arena'; render(); window.scrollTo({ top: 0 }); }
-    else if (b.id === 'nextQ') { newQ(); renderArena(); }
+    else if (b.id === 'nextQ') { if (state.arena.mode === 'combo') newCQ(); else newQ(); renderArena(); }
+    else if (b.dataset.am) { state.arena.mode = b.dataset.am; save(); renderArena(); const cur = $(`[data-am="${b.dataset.am}"]`); if (cur) cur.focus(); }
+    else if (b.dataset.c && b.closest('.arena')) answerC(b.dataset.c);
     else if (b.dataset.sbAdd) { if (state.sb.mods.length < SLOTS) sbAct(s => { s.mods.push(b.dataset.sbAdd); }); }
     else if (b.dataset.sbRm !== undefined) {
       const i = +b.dataset.sbRm;
@@ -564,6 +661,7 @@
       (left[Math.min(i, left.length - 1)] || $('[data-sb-add]')).focus();
     }
     else if (b.dataset.sbW !== undefined) sbAct(s => { s.w = +b.dataset.sbW; });
+    else if (b.dataset.sbT !== undefined) sbAct(s => { s.T = +b.dataset.sbT; });
     else if (b.id === 'sb-clear') sbAct(s => { s.mods = []; });
     else if (b.id === 'sb-why') $('#sb-out').scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
     else if (b.dataset.i !== undefined && b.closest('#opts')) pick(+b.dataset.i);
